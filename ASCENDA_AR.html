@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ascenda GrowthLens</title>
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+    
+    <style>
+        body { font-family: 'Helvetica', sans-serif; margin: 0; overflow: hidden; }
+        
+        /* INPUT SCREEN STYLES */
+        #input-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.98); z-index: 999;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+        }
+        h1 { color: #E6007E; margin-bottom: 5px; }
+        .tagline { font-size: 14px; color: #555; margin-bottom: 30px; font-style: italic; }
+        
+        select, button {
+            padding: 12px; margin: 10px; width: 80%; max-width: 300px;
+            border-radius: 8px; border: 1px solid #ccc; font-size: 16px;
+        }
+        button {
+            background: #E6007E; color: white; border: none; font-weight: bold;
+            margin-top: 20px; cursor: pointer;
+        }
+
+        /* INSTRUCTIONS OVERLAY */
+        #instruction-toast {
+            position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.7); color: white; padding: 10px 20px;
+            border-radius: 20px; text-align: center; font-size: 14px; width: 80%;
+            display: none; pointer-events: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="input-screen">
+        <h1>Ascenda GrowthLens</h1>
+        <div class="tagline">Be ready for the Ascenda effect</div>
+        
+        <p style="text-align:center; padding: 0 20px;">
+            1. Place "Hiro" A4 paper on the floor.<br>
+            2. Child stands with toes at the edge.<br>
+            3. Point camera at the paper.
+        </p>
+
+        <select id="gender">
+            <option value="boy">Boy</option>
+            <option value="girl">Girl</option>
+        </select>
+
+        <select id="age">
+            <option value="2">2 Years</option>
+            <option value="3">3 Years</option>
+            <option value="4">4 Years</option>
+            <option value="5">5 Years</option>
+        </select>
+
+        <button onclick="startExperience()">Start AR</button>
+    </div>
+
+    <div id="instruction-toast">Looking for Marker...<br>Ensure floor is well lit.</div>
+
+    <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;" vr-mode-ui="enabled: false">
+        
+        <a-marker id="marker" type="pattern" url="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/data/patt.hiro">
+            
+            <a-circle rotation="-90 0 0" radius="0.4" color="#E6007E" opacity="0.5"></a-circle>
+            <a-ring rotation="-90 0 0" radius-inner="0.38" radius-outer="0.4" color="white"></a-ring>
+
+            <a-cylinder id="pole" position="0 0.5 0" radius="0.02" height="1" color="#888"></a-cylinder>
+
+            <a-entity id="lines-container"></a-entity>
+
+        </a-marker>
+
+        <a-entity camera></a-entity>
+    </a-scene>
+
+    <script>
+        // WHO Growth Data (cm)
+        const whoData = {
+            boy: {
+                '2': { median: 87, sd2: 81, sd3: 78 },
+                '3': { median: 96, sd2: 89, sd3: 85 },
+                '4': { median: 103, sd2: 96, sd3: 93 },
+                '5': { median: 110, sd2: 102, sd3: 99 }
+            },
+            girl: {
+                '2': { median: 86, sd2: 80, sd3: 77 },
+                '3': { median: 95, sd2: 88, sd3: 84 },
+                '4': { median: 102, sd2: 95, sd3: 92 },
+                '5': { median: 109, sd2: 101, sd3: 98 }
+            }
+        };
+
+        const marker = document.querySelector("#marker");
+        const toast = document.querySelector("#instruction-toast");
+
+        function startExperience() {
+            const gender = document.getElementById('gender').value;
+            const age = document.getElementById('age').value;
+            const data = whoData[gender][age];
+
+            document.getElementById('input-screen').style.display = 'none';
+            document.getElementById('instruction-toast').style.display = 'block';
+
+            // Generate the AR elements
+            generateVisuals(data);
+        }
+
+        function generateVisuals(data) {
+            const container = document.getElementById('lines-container');
+            const pole = document.getElementById('pole');
+            
+            // 1. Adjust Pole Height to match Median (Visual anchor)
+            const medianMeters = data.median / 100;
+            pole.setAttribute("height", medianMeters);
+            pole.setAttribute("position", `0 ${medianMeters / 2} 0`); // Center of cylinder is height/2
+
+            // 2. Clear old lines
+            container.innerHTML = '';
+
+            // 3. Create the 3 Indicators
+            createIndicator(data.median, "#00FF00", "Goal (Median)", container);
+            createIndicator(data.sd2, "#FFC107", "-2 SD", container);
+            createIndicator(data.sd3, "#FF0000", "-3 SD", container);
+        }
+
+        function createIndicator(heightCm, color, text, container) {
+            const heightM = heightCm / 100;
+
+            // Group to hold Line + Text + Arrow
+            const group = document.createElement('a-entity');
+            group.setAttribute('position', `0 ${heightM} 0`);
+
+            // A. The Horizontal Disc (Halo effect)
+            // This helps visualize the height even if the child is not perfectly aligned
+            const disc = document.createElement('a-ring');
+            disc.setAttribute('radius-inner', '0.48');
+            disc.setAttribute('radius-outer', '0.5');
+            disc.setAttribute('rotation', '-90 0 0');
+            disc.setAttribute('color', color);
+            disc.setAttribute('opacity', '0.6');
+            group.appendChild(disc);
+
+            // B. The Label
+            const label = document.createElement('a-text');
+            label.setAttribute('value', `${text}\n${heightCm} cm`);
+            label.setAttribute('color', "white");
+            label.setAttribute('align', 'center');
+            // Place text slightly above the ring and rotate to face user roughly
+            label.setAttribute('position', '0 0.1 0.5'); 
+            label.setAttribute('scale', '3 3 3');
+            label.setAttribute('side', 'double'); // Visible from back too
+            group.appendChild(label);
+
+            container.appendChild(group);
+        }
+
+        // UX: Notify user when marker is found
+        marker.addEventListener("markerFound", () => {
+            toast.innerText = "Marker detected! Compare height now.";
+            toast.style.background = "rgba(0, 128, 0, 0.7)";
+        });
+
+        marker.addEventListener("markerLost", () => {
+            toast.innerText = "Point camera at the floor marker.";
+            toast.style.background = "rgba(0,0,0,0.7)";
+        });
+
+    </script>
+</body>
+</html>
