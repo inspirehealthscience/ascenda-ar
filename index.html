@@ -3,216 +3,180 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Height Measure + Gyro Fix</title>
+    <title>Auto-Level AR Measure</title>
+    
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; color: white; }
-        
-        /* The Camera View */
-        video {
-            position: absolute; top: 0; left: 0;
-            width: 100vw; height: 100vh;
-            object-fit: cover;
-            z-index: 1;
-        }
+        body { margin: 0; overflow: hidden; font-family: sans-serif; }
 
-        /* The UI Overlay */
+        /* UI Overlay */
         #ui-layer {
-            position: absolute; top: 0; left: 0;
-            width: 100%; height: 100%;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
             z-index: 10;
-            pointer-events: none; /* Let touches pass through to sliders if needed */
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
         }
 
-        /* Top Info Bar */
-        .info-bar {
-            background: rgba(0, 0, 0, 0.6);
-            padding: 10px;
-            text-align: center;
-            pointer-events: auto;
-        }
-
-        /* The "Ruler" Box (Green Lines) */
-        #measure-box {
+        /* The Center Target (Top of Object) */
+        #crosshair {
             position: absolute;
             top: 50%; left: 50%;
+            width: 40px; height: 4px;
+            background: red;
             transform: translate(-50%, -50%);
-            width: 60%;
-            height: 50%; /* Initial height */
-            border-top: 4px solid #00ff00;
-            border-bottom: 4px solid #00ff00;
-            box-shadow: 0 0 10px rgba(0,255,0,0.5);
+            box-shadow: 0 0 5px red;
+        }
+        #crosshair::after {
+            content: "Align with TOP";
+            position: absolute; top: -20px; left: 50%; 
+            transform: translateX(-50%);
+            color: red; font-size: 12px; font-weight: bold; white-space: nowrap;
         }
 
-        /* Sliders to adjust the green lines */
-        .controls {
-            pointer-events: auto;
-            background: rgba(0,0,0,0.7);
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
+        /* The Automatic Floor Line (Follows Marker) */
+        #floor-line {
+            position: absolute;
+            left: 10%; width: 80%; height: 4px;
+            background: #00ff00;
+            box-shadow: 0 0 5px #00ff00;
+            display: none; /* Hidden until marker found */
         }
+        #floor-line::after {
+            content: "FLOOR (Marker)";
+            position: absolute; bottom: -20px; left: 50%;
+            transform: translateX(-50%);
+            color: #00ff00; font-size: 12px; font-weight: bold;
+        }
+
+        /* Connecting Line (Vertical visualization) */
+        #measure-line {
+            position: absolute;
+            left: 50%; width: 2px;
+            background: rgba(255, 255, 255, 0.5);
+            transform: translateX(-50%);
+            display: none;
+        }
+
+        /* Stats Box */
+        .hud {
+            position: absolute; top: 20px; left: 0; right: 0;
+            text-align: center;
+        }
+        .hud-box {
+            display: inline-block;
+            background: rgba(0,0,0,0.8);
+            border: 2px solid white;
+            padding: 15px 30px;
+            border-radius: 30px;
+        }
+        .main-val { font-size: 32px; font-weight: bold; color: white; }
+        .sub-val { font-size: 12px; color: #ccc; margin-top: 5px;}
         
-        input[type=range] { width: 100%; }
-        button { padding: 10px 20px; font-size: 16px; background: #2196F3; color: white; border: none; border-radius: 4px; }
-        
-        .stat-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px; }
-        .highlight { color: #00ff00; font-weight: bold; font-size: 18px; }
     </style>
 </head>
 <body>
 
-    <video id="camera-feed" autoplay playsinline muted></video>
-
-    <div id="measure-box"></div>
-
     <div id="ui-layer">
-        
-        <div class="info-bar">
-            <button id="start-btn" onclick="startApp()">Start Camera & Sensors (iOS Req.)</button>
-            <div id="debug-info" style="margin-top:5px; font-size:12px; color:#aaa;">Waiting for permissions...</div>
-        </div>
-
-        <div class="controls">
-            <label>Distance to Object (cm): <span id="dist-val">200</span></label>
-            <input type="range" id="distance-slider" min="50" max="500" value="200" oninput="updateCalcs()">
-
-            <label>Adjust Box Height to Fit Object</label>
-            <input type="range" id="box-slider" min="1" max="100" value="50" oninput="updateBox()">
-
-            <hr style="width:100%; border:0; border-top:1px solid #555;">
-
-            <div class="stat-row">
-                <span>Phone Tilt (Pitch):</span>
-                <span id="tilt-display">0°</span>
-            </div>
-            <div class="stat-row">
-                <span>Raw Height (Uncorrected):</span>
-                <span id="raw-height">0 cm</span>
-            </div>
-            <div class="stat-row">
-                <span>Final Corrected Height:</span>
-                <span id="final-height" class="highlight">0 cm</span>
+        <div class="hud">
+            <div class="hud-box">
+                <div class="main-val" id="result-text">0.0 cm</div>
+                <div class="sub-val" id="status-text">Scanning for Marker...</div>
             </div>
         </div>
+
+        <div id="crosshair"></div>
+        <div id="floor-line"></div>
+        <div id="measure-line"></div>
     </div>
 
+    <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;" vr-mode-ui="enabled: false">
+        <a-entity camera></a-entity>
+        <a-marker preset="hiro" id="target-marker">
+            <a-sphere radius="0.1" color="#00ff00"></a-sphere>
+        </a-marker>
+    </a-scene>
+
 <script>
-    // --- Configuration ---
-    // Average vertical Field of View for modern phones is approx 60-70 degrees.
-    // Ideally, you'd calibrate this per device, but 65 is a safe default for estimation.
-    const VERTICAL_FOV = 65; 
+    // --- CONFIG ---
+    const MARKER_SIZE_CM = 17.0; 
+    const VERTICAL_FOV = 60; // Standard approximation
 
-    // --- State Variables ---
-    let distanceCm = 200;
-    let boxHeightPercent = 50; // Percentage of screen height
-    let currentPitch = 90; // Default to upright (90 degrees in beta)
+    // --- ELEMENTS ---
+    const marker = document.querySelector("#target-marker");
+    const cameraEl = document.querySelector("[camera]");
+    const floorLine = document.getElementById("floor-line");
+    const resultText = document.getElementById("result-text");
+    const statusText = document.getElementById("status-text");
+    const measureLine = document.getElementById("measure-line");
 
-    // --- Elements ---
-    const video = document.getElementById('camera-feed');
-    const measureBox = document.getElementById('measure-box');
-    const tiltDisplay = document.getElementById('tilt-display');
-    const rawDisplay = document.getElementById('raw-height');
-    const finalDisplay = document.getElementById('final-height');
-    const debugInfo = document.getElementById('debug-info');
-    const btn = document.getElementById('start-btn');
-
-    // --- 1. Start App & Request Permissions ---
-    async function startApp() {
-        // 1. Camera Access
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: 'environment' } 
-            });
-            video.srcObject = stream;
-            btn.style.display = 'none'; // Hide button after success
-        } catch (err) {
-            alert("Camera failed: " + err.message);
+    // --- MAIN LOOP ---
+    setInterval(() => {
+        if (!marker || !marker.object3D || !marker.object3D.visible) {
+            statusText.innerText = "Point camera at floor marker";
+            statusText.style.color = "yellow";
+            floorLine.style.display = "none";
+            measureLine.style.display = "none";
+            return;
         }
 
-        // 2. Gyro Access (iOS 13+ requires this requestPermission block)
-        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-            try {
-                const response = await DeviceOrientationEvent.requestPermission();
-                if (response === 'granted') {
-                    window.addEventListener('deviceorientation', handleOrientation);
-                    debugInfo.innerText = "iOS Sensors Active";
-                } else {
-                    alert("Permission denied for sensors");
-                }
-            } catch (e) {
-                console.error(e);
-            }
-        } else {
-            // Non-iOS 13+ devices (Android usually works automatically)
-            window.addEventListener('deviceorientation', handleOrientation);
-            debugInfo.innerText = "Sensors Active (Standard Mode)";
+        // 1. Get 3D Positions
+        const markerPos = marker.object3D.position.clone();
+        const cameraPos = cameraEl.object3D.position.clone();
+
+        // 2. Calculate Real Distance (Depth)
+        const distanceMeters = markerPos.distanceTo(cameraPos); // In "AR Units"
+        // Convert to CM. AR.js units are normalized so 1 unit approx = 1 marker width
+        // But for projection math, we need the relative Z-depth mostly.
+        const realDistCm = distanceMeters * MARKER_SIZE_CM;
+
+        // 3. Project Marker 3D Position to 2D Screen Coordinates
+        // This is the Magic Step: It tells us where the floor is on your screen!
+        markerPos.project(cameraEl.object3D.children[0]); // Project vector
+        
+        // markerPos.y is now in range [-1, 1]. 
+        // +1 is Top, -1 is Bottom. 0 is Center.
+        // We invert Y because CSS pixels go Top->Bottom, but 3D goes Bottom->Top
+        const floorScreenYPercent = (-(markerPos.y) + 1) / 2 * 100;
+
+        // 4. Update UI Line
+        floorLine.style.display = "block";
+        floorLine.style.top = floorScreenYPercent + "%";
+
+        // 5. Calculate Height
+        // The "Top" is fixed at the center of the screen (50%)
+        const centerScreenYPercent = 50;
+        
+        // Calculate the percentage of the screen the object occupies
+        // If marker is below center (e.g. 80%), diff is 30%.
+        let percentDiff = floorScreenYPercent - centerScreenYPercent;
+        
+        if (percentDiff < 0) {
+            // Marker is above the center line (User is looking UP at the marker?)
+            // This usually means invalid measurement state or object is upside down.
+            percentDiff = 0; 
         }
-    }
 
-    // --- 2. Handle Orientation Data ---
-    function handleOrientation(event) {
-        // 'beta' is the front-to-back tilt in degrees.
-        // 90 is upright (portrait), 0 is flat on table.
-        // We clamp it to avoid division by zero errors near 0.
-        let beta = event.beta;
+        // --- THE MATH ---
+        // Height = Distance * (ScreenPercent) * 2 * tan(FOV/2)
+        const fovRad = (VERTICAL_FOV * Math.PI) / 180;
+        const screenFactor = percentDiff / 100;
         
-        if (beta === null) return; // Sensor not ready
+        // Note: We use realDistCm from the AR calculation which inherently includes
+        // the perspective Z-depth.
+        const heightCm = realDistCm * screenFactor * 2 * Math.tan(fovRad / 2);
 
-        // Fix for Android/iOS differences if necessary, but 'beta' is generally consistent.
-        // We only care about positive tilt here for simplicity.
-        if (beta < 10) beta = 10; // Prevent dividing by cos(90) which is 0
-        if (beta > 170) beta = 170;
+        // 6. Update Stats
+        resultText.innerText = heightCm.toFixed(1) + " cm";
+        statusText.innerText = "Marker Locked. Align red line with top.";
+        statusText.style.color = "#00ff00";
 
-        currentPitch = beta;
-        updateCalcs();
-    }
+        // Update the vertical connecting line
+        measureLine.style.display = "block";
+        measureLine.style.top = "50%";
+        measureLine.style.height = percentDiff + "%";
 
-    // --- 3. Update Visual Box ---
-    function updateBox() {
-        const sliderVal = document.getElementById('box-slider').value;
-        boxHeightPercent = sliderVal;
-        measureBox.style.height = sliderVal + "%";
-        updateCalcs();
-    }
-
-    // --- 4. The Math Calculation ---
-    function updateCalcs() {
-        // Get Distance Input
-        distanceCm = document.getElementById('distance-slider').value;
-        document.getElementById('dist-val').innerText = distanceCm;
-
-        // 1. Calculate RAW Height (Trigonometry)
-        // Formula: Height = Distance * (ObjectScreenPercentage) * 2 * tan(FOV / 2)
-        // Note: Math.tan takes Radians!
-        const fovRadians = (VERTICAL_FOV * Math.PI) / 180;
-        const screenFactor = boxHeightPercent / 100;
-        
-        // This calculates the height assuming the phone is perfectly parallel to the object
-        const rawHeight = distanceCm * screenFactor * 2 * Math.tan(fovRadians / 2);
-
-        // 2. Calculate Correction Angle
-        // If phone is upright (beta=90), tiltAngle is 0. 
-        // If phone is tilted back 45 deg (beta=45), tiltAngle is 45.
-        const tiltAngleDeg = Math.abs(90 - currentPitch);
-        const tiltRadians = (tiltAngleDeg * Math.PI) / 180;
-
-        // 3. Apply Correction
-        // RealHeight = MeasuredHeight / cos(TiltAngle)
-        const cosTheta = Math.cos(tiltRadians);
-        const correctedHeight = rawHeight / cosTheta;
-
-        // 4. Update UI
-        tiltDisplay.innerText = `${Math.round(currentPitch)}° (Tilt: ${Math.round(tiltAngleDeg)}°)`;
-        rawDisplay.innerText = rawHeight.toFixed(1) + " cm";
-        finalDisplay.innerText = correctedHeight.toFixed(1) + " cm";
-    }
-
-    // Initialize UI
-    updateBox();
+    }, 50); // Fast update for smooth UI
 </script>
 </body>
 </html>
