@@ -8,6 +8,9 @@
     <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
 
     <style>
+      body { margin: 0; overflow: hidden; font-family: sans-serif; }
+      
+      /* The Overlay UI */
       #overlay {
         position: fixed;
         bottom: 20px;
@@ -16,8 +19,33 @@
         text-align: center;
         z-index: 10;
         pointer-events: none;
-        font-family: Arial, sans-serif;
       }
+      
+      /* Start Button Screen */
+      #start-screen {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.9);
+        z-index: 999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: white;
+      }
+      
+      #start-btn {
+        padding: 15px 30px;
+        font-size: 20px;
+        background: #007bff;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        margin-top: 20px;
+      }
+
+      /* Legend Badges */
       .badge {
         background: rgba(0,0,0,0.7);
         color: white;
@@ -26,52 +54,63 @@
         font-size: 16px;
         display: inline-block;
       }
-      .legend {
-        display: inline-block;
-        margin: 0 5px;
-        font-size: 12px;
-      }
-      .dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; }
+      .dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
     </style>
   </head>
 
-  <body style="margin: 0; overflow: hidden;">
-    
-    <div id="overlay">
-      <div class="badge">
-        <span class="legend"><span class="dot" style="background:orange;"></span> +3/-3 SD</span>
-        <span class="legend"><span class="dot" style="background:#00ff00;"></span> Median</span>
-        <br>
-        Align marker on floor next to child
+  <body>
+
+    <div id="start-screen">
+      <h2>AR Growth Scanner</h2>
+      <p>Please allow camera access when prompted.</p>
+      <button id="start-btn" onclick="startAR()">Start Camera</button>
+    </div>
+
+    <div id="overlay" style="display:none;"> <div class="badge">
+        <span style="margin-right:15px;"><span class="dot" style="background:orange;"></span>±3 SD</span>
+        <span><span class="dot" style="background:#00ff00;"></span>Median</span>
       </div>
     </div>
 
-    <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;">
+    <a-scene 
+      embedded 
+      vr-mode-ui="enabled: false"
+      arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;">
 
-      <a-marker preset="hiro">
+      <a-marker preset="hiro" id="marker">
         
         <a-entity position="0 1.2 0">
             <a-torus color="orange" radius="0.3" radius-tubular="0.01" rotation="90 0 0" opacity="0.8"></a-torus>
-            <a-text value="+3 SD (120cm)" color="orange" align="center" position="0 0.4 0" scale="2 2 2" look-at="[camera]"></a-text>
+            <a-text value="+3 SD" color="orange" align="center" position="0 0.4 0" scale="2 2 2" look-at="[camera]"></a-text>
         </a-entity>
 
         <a-entity position="0 1.1 0">
             <a-torus color="#00ff00" radius="0.3" radius-tubular="0.02" rotation="90 0 0"></a-torus>
-            <a-cylinder color="#00ff00" height="0.05" radius="0.3" opacity="0.2"></a-cylinder>
-            
-            <a-text value="MEDIAN (110cm)" color="#00ff00" align="center" position="0 0.4 0" scale="2 2 2" look-at="[camera]"></a-text>
+            <a-cylinder color="#00ff00" height="0.05" radius="0.3" opacity="0.15"></a-cylinder>
+            <a-text value="MEDIAN" color="#00ff00" align="center" position="0 0.4 0" scale="2 2 2" look-at="[camera]"></a-text>
         </a-entity>
 
         <a-entity position="0 1.0 0">
             <a-torus color="orange" radius="0.3" radius-tubular="0.01" rotation="90 0 0" opacity="0.8"></a-torus>
-            <a-text value="-3 SD (100cm)" color="orange" align="center" position="0 0.4 0" scale="2 2 2" look-at="[camera]"></a-text>
+            <a-text value="-3 SD" color="orange" align="center" position="0 0.4 0" scale="2 2 2" look-at="[camera]"></a-text>
         </a-entity>
-
-        <a-cylinder position="0 0.6 0" radius="0.01" height="1.2" color="white" opacity="0.1"></a-cylinder>
+        
+        <a-box position="0 0 0" scale="0.1 0.01 0.1" color="blue"></a-box>
 
       </a-marker>
 
       <a-entity camera></a-entity>
     </a-scene>
+
+    <script>
+      function startAR() {
+        // Hide start screen
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('overlay').style.display = 'block';
+        
+        // This triggers the scene to actually render, helping with the 'first load' bug
+        document.querySelector('a-scene').style.display = 'block';
+      }
+    </script>
   </body>
 </html>
