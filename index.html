@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>1 Meter Precision Test</title>
+    <title>152cm Height Calibration</title>
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
     <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
@@ -29,9 +29,9 @@
   <body>
 
     <div id="start-screen">
-      <h2>Final Calibration</h2>
-      <p>Marker: <b>17 cm</b></p>
-      <p>Target Height: <b>100 cm</b></p>
+      <h2>Calibration Check</h2>
+      <p>Marker Size: <b>17 cm</b></p>
+      <p>Target Height: <b>152 cm</b></p>
       <button onclick="startAR()">Start Camera</button>
     </div>
 
@@ -50,7 +50,7 @@
             <a-torus color="#00ff00" radius="0.5" radius-tubular="0.02" rotation="90 0 0"></a-torus>
             
             <a-text 
-                value="100 CM" 
+                value="152 CM" 
                 color="#00ff00" 
                 align="center" 
                 position="0 -0.5 0" 
@@ -72,27 +72,29 @@
         document.getElementById('start-screen').style.display = 'none';
         
         // === THE MATH ===
-        // Target: 1.0 meter
-        // Marker: 0.17 meter
-        // Formula: We need X number of 'marker-heights' to equal 1 meter.
-        const targetHeight = 1.0;
-        const markerSize = 0.17;
-        const calculatedY = targetHeight / markerSize; // Result: ~5.88
+        // Target: 1.52 meters
+        // Marker: 0.17 meters
+        // Ratio: 1.52 / 0.17 = 8.941176...
+        const targetHeight = 1.52; 
+        const markerSize = 0.17;   
+        
+        const calculatedY = targetHeight / markerSize; 
 
-        // === APPLY POSITION ONLY (NOT SCALE) ===
+        // Debugging: Check your browser console to see the exact number (should be ~8.94)
+        console.log("Calculated Scale Factor (Y Position): " + calculatedY);
+
+        // Apply Position
         const ringEntity = document.getElementById('height-marker');
         const pole = document.getElementById('pole');
 
-        // Move the Ring UP to the calculated height
+        // This sets the Ring position to exactly 8.94 units up
         ringEntity.setAttribute('position', `0 ${calculatedY} 0`);
 
-        // Adjust the Pole to connect the gap
-        // Height of pole = calculated Y
-        // Position of pole = calculated Y / 2 (because cylinders grow from center)
+        // Adjust Pole to stretch from floor to ring
         pole.setAttribute('height', calculatedY);
         pole.setAttribute('position', `0 -${calculatedY / 2} 0`);
 
-        document.getElementById('info').innerHTML = `Ring Height: 100cm (Internal Units: ${calculatedY.toFixed(2)})`;
+        document.getElementById('info').innerHTML = `Ring Height: 152cm (Scale Factor: ${calculatedY.toFixed(2)})`;
       }
     </script>
   </body>
