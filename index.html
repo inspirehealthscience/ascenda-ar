@@ -9,7 +9,6 @@
     <style>
       body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
       
-      /* Start Screen */
       #start-screen {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(0,0,0,0.9); z-index: 999;
@@ -21,53 +20,43 @@
         color: white; border: none; border-radius: 50px; cursor: pointer; margin-top: 20px;
       }
 
-      /* Legend Overlay */
-      #overlay {
-        position: fixed; bottom: 20px; left: 0; width: 100%;
-        text-align: center; pointer-events: none; display: none;
+      /* Instructions for Calibration */
+      .calibration-note {
+        margin-top: 20px; font-size: 14px; color: #ffcc00; max-width: 80%; text-align: center;
       }
-      .badge {
-        background: rgba(0,0,0,0.8); color: white; padding: 10px 20px;
-        border-radius: 30px; font-size: 16px; display: inline-block;
-      }
-      .dot { height: 12px; width: 12px; border-radius: 50%; display: inline-block; margin-right: 5px; }
     </style>
   </head>
 
   <body>
 
     <script>
-      // === UPDATE THIS DATA FOR YOUR SPECIFIC AGE ===
-      // Values are in Meters (e.g., 110cm = 1.1)
-      // Default: WHO Standards for 5-Year-Old Boy
       const growthData = {
-        sd3_pos: 1.21,  // +3 SD (Top Orange Ring)
-        median:  1.10,  // Median (Green Ring)
-        sd3_neg: 0.99   // -3 SD (Bottom Orange Ring)
+        sd3_pos: 1.21,  // +3 SD (121 cm)
+        median:  1.10,  // Median (110 cm)
+        sd3_neg: 0.99   // -3 SD (99 cm)
       };
     </script>
 
     <div id="start-screen">
-      <h2>Growth Scanner</h2>
+      <h2>Growth Scanner v4</h2>
       <p>1. Place Hiro marker on floor.</p>
       <p>2. Stand back 1-2 meters.</p>
-      <button id="start-btn" onclick="startAR()">Start Camera</button>
-    </div>
-
-    <div id="overlay">
-      <div class="badge">
-        <span style="margin-right:15px;"><span class="dot" style="background:orange;"></span>±3 SD</span>
-        <span><span class="dot" style="background:#00ff00;"></span>Median</span>
+      
+      <div class="calibration-note">
+        IMPORTANT: This code assumes your printed black square is exactly <b>10cm (0.1m)</b> wide.<br>
+        If heights are wrong, update the 'size' in the code.
       </div>
+
+      <button id="start-btn" onclick="startAR()">Start Camera</button>
     </div>
 
     <a-scene 
       embedded 
       vr-mode-ui="enabled: false"
       renderer="logarithmicDepthBuffer: true;"
-      arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3; sourceWidth:1280; sourceHeight:960; displayWidth: 1280; displayHeight: 960;">
+      arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;">
 
-      <a-marker preset="hiro" id="marker" smooth="true" smoothCount="10" smoothTolerance="0.01" smoothThreshold="5">
+      <a-marker preset="hiro" id="marker" size="0.17" smooth="true" smoothCount="10" smoothTolerance="0.01" smoothThreshold="5">
         
         <a-entity id="ring-top" position="0 1 0">
             <a-torus color="orange" radius="0.3" radius-tubular="0.015" rotation="90 0 0" opacity="0.9"></a-torus>
@@ -95,19 +84,15 @@
     <script>
       function startAR() {
         document.getElementById('start-screen').style.display = 'none';
-        document.getElementById('overlay').style.display = 'block';
         
-        // Apply Config Data to Rings
         const topRing = document.querySelector('#ring-top');
         const midRing = document.querySelector('#ring-mid');
         const botRing = document.querySelector('#ring-bot');
 
-        // Set Positions (Y axis is the middle number)
         topRing.setAttribute('position', `0 ${growthData.sd3_pos} 0`);
         midRing.setAttribute('position', `0 ${growthData.median} 0`);
         botRing.setAttribute('position', `0 ${growthData.sd3_neg} 0`);
 
-        // Update Text Labels with CM values
         document.querySelector('#txt-top').setAttribute('value', `+3 SD (${(growthData.sd3_pos*100).toFixed(0)}cm)`);
         document.querySelector('#txt-mid').setAttribute('value', `MEDIAN (${(growthData.median*100).toFixed(0)}cm)`);
         document.querySelector('#txt-bot').setAttribute('value', `-3 SD (${(growthData.sd3_neg*100).toFixed(0)}cm)`);
