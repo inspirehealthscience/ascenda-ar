@@ -1,101 +1,218 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <title>152cm Height Calibration</title>
-    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
-    <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
-
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Height Measure + Gyro Fix</title>
     <style>
-      body { margin: 0; overflow: hidden; font-family: sans-serif; }
-      
-      #start-screen {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.9); z-index: 999;
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-        color: white;
-      }
-      button {
-        padding: 15px 40px; font-size: 20px; background: #28a745;
-        color: white; border: none; border-radius: 50px; cursor: pointer; margin-top: 20px;
-      }
-      #info {
-        position: fixed; top: 10px; width: 100%; text-align: center; color: white;
-        background: rgba(0,0,0,0.5); padding: 5px; pointer-events: none;
-      }
+        body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; color: white; }
+        
+        /* The Camera View */
+        video {
+            position: absolute; top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            object-fit: cover;
+            z-index: 1;
+        }
+
+        /* The UI Overlay */
+        #ui-layer {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 10;
+            pointer-events: none; /* Let touches pass through to sliders if needed */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* Top Info Bar */
+        .info-bar {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px;
+            text-align: center;
+            pointer-events: auto;
+        }
+
+        /* The "Ruler" Box (Green Lines) */
+        #measure-box {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60%;
+            height: 50%; /* Initial height */
+            border-top: 4px solid #00ff00;
+            border-bottom: 4px solid #00ff00;
+            box-shadow: 0 0 10px rgba(0,255,0,0.5);
+        }
+
+        /* Sliders to adjust the green lines */
+        .controls {
+            pointer-events: auto;
+            background: rgba(0,0,0,0.7);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        input[type=range] { width: 100%; }
+        button { padding: 10px 20px; font-size: 16px; background: #2196F3; color: white; border: none; border-radius: 4px; }
+        
+        .stat-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px; }
+        .highlight { color: #00ff00; font-weight: bold; font-size: 18px; }
     </style>
-  </head>
+</head>
+<body>
 
-  <body>
+    <video id="camera-feed" autoplay playsinline muted></video>
 
-    <div id="start-screen">
-      <h2>Calibration Check</h2>
-      <p>Marker Size: <b>17 cm</b></p>
-      <p>Target Height: <b>152 cm</b></p>
-      <button onclick="startAR()">Start Camera</button>
+    <div id="measure-box"></div>
+
+    <div id="ui-layer">
+        
+        <div class="info-bar">
+            <button id="start-btn" onclick="startApp()">Start Camera & Sensors (iOS Req.)</button>
+            <div id="debug-info" style="margin-top:5px; font-size:12px; color:#aaa;">Waiting for permissions...</div>
+        </div>
+
+        <div class="controls">
+            <label>Distance to Object (cm): <span id="dist-val">200</span></label>
+            <input type="range" id="distance-slider" min="50" max="500" value="200" oninput="updateCalcs()">
+
+            <label>Adjust Box Height to Fit Object</label>
+            <input type="range" id="box-slider" min="1" max="100" value="50" oninput="updateBox()">
+
+            <hr style="width:100%; border:0; border-top:1px solid #555;">
+
+            <div class="stat-row">
+                <span>Phone Tilt (Pitch):</span>
+                <span id="tilt-display">0°</span>
+            </div>
+            <div class="stat-row">
+                <span>Raw Height (Uncorrected):</span>
+                <span id="raw-height">0 cm</span>
+            </div>
+            <div class="stat-row">
+                <span>Final Corrected Height:</span>
+                <span id="final-height" class="highlight">0 cm</span>
+            </div>
+        </div>
     </div>
 
-    <div id="info">Aligning to 17cm Marker...</div>
+<script>
+    // --- Configuration ---
+    // Average vertical Field of View for modern phones is approx 60-70 degrees.
+    // Ideally, you'd calibrate this per device, but 65 is a safe default for estimation.
+    const VERTICAL_FOV = 65; 
 
-    <a-scene 
-      embedded 
-      vr-mode-ui="enabled: false"
-      renderer="logarithmicDepthBuffer: true;"
-      arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;">
+    // --- State Variables ---
+    let distanceCm = 200;
+    let boxHeightPercent = 50; // Percentage of screen height
+    let currentPitch = 90; // Default to upright (90 degrees in beta)
 
-      <a-marker preset="hiro" id="marker" size="0.17" smooth="true" smoothCount="10" smoothTolerance="0.01" smoothThreshold="5">
+    // --- Elements ---
+    const video = document.getElementById('camera-feed');
+    const measureBox = document.getElementById('measure-box');
+    const tiltDisplay = document.getElementById('tilt-display');
+    const rawDisplay = document.getElementById('raw-height');
+    const finalDisplay = document.getElementById('final-height');
+    const debugInfo = document.getElementById('debug-info');
+    const btn = document.getElementById('start-btn');
+
+    // --- 1. Start App & Request Permissions ---
+    async function startApp() {
+        // 1. Camera Access
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: 'environment' } 
+            });
+            video.srcObject = stream;
+            btn.style.display = 'none'; // Hide button after success
+        } catch (err) {
+            alert("Camera failed: " + err.message);
+        }
+
+        // 2. Gyro Access (iOS 13+ requires this requestPermission block)
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            try {
+                const response = await DeviceOrientationEvent.requestPermission();
+                if (response === 'granted') {
+                    window.addEventListener('deviceorientation', handleOrientation);
+                    debugInfo.innerText = "iOS Sensors Active";
+                } else {
+                    alert("Permission denied for sensors");
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        } else {
+            // Non-iOS 13+ devices (Android usually works automatically)
+            window.addEventListener('deviceorientation', handleOrientation);
+            debugInfo.innerText = "Sensors Active (Standard Mode)";
+        }
+    }
+
+    // --- 2. Handle Orientation Data ---
+    function handleOrientation(event) {
+        // 'beta' is the front-to-back tilt in degrees.
+        // 90 is upright (portrait), 0 is flat on table.
+        // We clamp it to avoid division by zero errors near 0.
+        let beta = event.beta;
         
-        <a-entity id="height-marker" position="0 0 0">
-            
-            <a-torus color="#00ff00" radius="0.5" radius-tubular="0.02" rotation="90 0 0"></a-torus>
-            
-            <a-text 
-                value="152 CM" 
-                color="#00ff00" 
-                align="center" 
-                position="0 -0.5 0" 
-                scale="3 3 3"
-                look-at="[camera]">
-            </a-text>
+        if (beta === null) return; // Sensor not ready
 
-            <a-cylinder id="pole" color="white" radius="0.01" height="1" position="0 -0.5 0" opacity="0.5"></a-cylinder>
-            
-        </a-entity>
+        // Fix for Android/iOS differences if necessary, but 'beta' is generally consistent.
+        // We only care about positive tilt here for simplicity.
+        if (beta < 10) beta = 10; // Prevent dividing by cos(90) which is 0
+        if (beta > 170) beta = 170;
 
-      </a-marker>
+        currentPitch = beta;
+        updateCalcs();
+    }
 
-      <a-entity camera></a-entity>
-    </a-scene>
+    // --- 3. Update Visual Box ---
+    function updateBox() {
+        const sliderVal = document.getElementById('box-slider').value;
+        boxHeightPercent = sliderVal;
+        measureBox.style.height = sliderVal + "%";
+        updateCalcs();
+    }
 
-    <script>
-      function startAR() {
-        document.getElementById('start-screen').style.display = 'none';
+    // --- 4. The Math Calculation ---
+    function updateCalcs() {
+        // Get Distance Input
+        distanceCm = document.getElementById('distance-slider').value;
+        document.getElementById('dist-val').innerText = distanceCm;
+
+        // 1. Calculate RAW Height (Trigonometry)
+        // Formula: Height = Distance * (ObjectScreenPercentage) * 2 * tan(FOV / 2)
+        // Note: Math.tan takes Radians!
+        const fovRadians = (VERTICAL_FOV * Math.PI) / 180;
+        const screenFactor = boxHeightPercent / 100;
         
-        // === THE MATH ===
-        // Target: 1.52 meters
-        // Marker: 0.17 meters
-        // Ratio: 1.52 / 0.17 = 8.941176...
-        const targetHeight = 1.52; 
-        const markerSize = 0.17;   
-        
-        const calculatedY = targetHeight / markerSize; 
+        // This calculates the height assuming the phone is perfectly parallel to the object
+        const rawHeight = distanceCm * screenFactor * 2 * Math.tan(fovRadians / 2);
 
-        // Debugging: Check your browser console to see the exact number (should be ~8.94)
-        console.log("Calculated Scale Factor (Y Position): " + calculatedY);
+        // 2. Calculate Correction Angle
+        // If phone is upright (beta=90), tiltAngle is 0. 
+        // If phone is tilted back 45 deg (beta=45), tiltAngle is 45.
+        const tiltAngleDeg = Math.abs(90 - currentPitch);
+        const tiltRadians = (tiltAngleDeg * Math.PI) / 180;
 
-        // Apply Position
-        const ringEntity = document.getElementById('height-marker');
-        const pole = document.getElementById('pole');
+        // 3. Apply Correction
+        // RealHeight = MeasuredHeight / cos(TiltAngle)
+        const cosTheta = Math.cos(tiltRadians);
+        const correctedHeight = rawHeight / cosTheta;
 
-        // This sets the Ring position to exactly 8.94 units up
-        ringEntity.setAttribute('position', `0 ${calculatedY} 0`);
+        // 4. Update UI
+        tiltDisplay.innerText = `${Math.round(currentPitch)}° (Tilt: ${Math.round(tiltAngleDeg)}°)`;
+        rawDisplay.innerText = rawHeight.toFixed(1) + " cm";
+        finalDisplay.innerText = correctedHeight.toFixed(1) + " cm";
+    }
 
-        // Adjust Pole to stretch from floor to ring
-        pole.setAttribute('height', calculatedY);
-        pole.setAttribute('position', `0 -${calculatedY / 2} 0`);
-
-        document.getElementById('info').innerHTML = `Ring Height: 152cm (Scale Factor: ${calculatedY.toFixed(2)})`;
-      }
-    </script>
-  </body>
+    // Initialize UI
+    updateBox();
+</script>
+</body>
 </html>
