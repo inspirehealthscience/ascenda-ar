@@ -1,19 +1,14 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>1 Meter Calibration Test</title>
+    <title>1 Meter Precision Test</title>
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
     <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
 
     <style>
       body { margin: 0; overflow: hidden; font-family: sans-serif; }
-      #ui {
-        position: fixed; top: 10px; width: 100%; text-align: center;
-        color: yellow; font-weight: bold; pointer-events: none; 
-        text-shadow: 2px 2px 2px black; font-size: 18px;
-        z-index: 100;
-      }
+      
       #start-screen {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(0,0,0,0.9); z-index: 999;
@@ -24,19 +19,23 @@
         padding: 15px 40px; font-size: 20px; background: #28a745;
         color: white; border: none; border-radius: 50px; cursor: pointer; margin-top: 20px;
       }
+      #info {
+        position: fixed; top: 10px; width: 100%; text-align: center; color: white;
+        background: rgba(0,0,0,0.5); padding: 5px; pointer-events: none;
+      }
     </style>
   </head>
 
   <body>
 
     <div id="start-screen">
-      <h2>Calibration Fix</h2>
-      <p>Marker Size: <b>17 cm</b></p>
+      <h2>Final Calibration</h2>
+      <p>Marker: <b>17 cm</b></p>
       <p>Target Height: <b>100 cm</b></p>
       <button onclick="startAR()">Start Camera</button>
     </div>
 
-    <div id="ui">Loading...</div>
+    <div id="info">Aligning to 17cm Marker...</div>
 
     <a-scene 
       embedded 
@@ -46,25 +45,22 @@
 
       <a-marker preset="hiro" id="marker" size="0.17" smooth="true" smoothCount="10" smoothTolerance="0.01" smoothThreshold="5">
         
-        <a-entity id="measure-group" position="0 0 0">
+        <a-entity id="height-marker" position="0 0 0">
             
-            <a-cylinder 
-              id="pole"
-              position="0 0.5 0" 
-              radius="0.05" 
-              height="1" 
-              color="white" 
-              opacity="0.3">
-            </a-cylinder>
+            <a-torus color="#00ff00" radius="0.5" radius-tubular="0.02" rotation="90 0 0"></a-torus>
+            
+            <a-text 
+                value="100 CM" 
+                color="#00ff00" 
+                align="center" 
+                position="0 -0.5 0" 
+                scale="3 3 3"
+                look-at="[camera]">
+            </a-text>
 
-            <a-entity id="ring-container" position="0 1 0">
-                <a-torus color="#00ff00" radius="0.5" radius-tubular="0.03" rotation="90 0 0"></a-torus>
-                <a-text value="100 cm" color="#00ff00" align="center" position="0 0.6 0" scale="5 5 5" look-at="[camera]"></a-text>
-            </a-entity>
-
+            <a-cylinder id="pole" color="white" radius="0.01" height="1" position="0 -0.5 0" opacity="0.5"></a-cylinder>
+            
         </a-entity>
-        
-        <a-box position="0 0.5 0" color="red" opacity="0.5"></a-box>
 
       </a-marker>
 
@@ -72,33 +68,31 @@
     </a-scene>
 
     <script>
-      // === CALIBRATION SETTINGS ===
-      const MARKER_SIZE_METERS = 0.17; // Your 17cm marker
-      const TARGET_HEIGHT_METERS = 1.0; // We want 100cm
-
       function startAR() {
         document.getElementById('start-screen').style.display = 'none';
         
-        // 1. Calculate the Ratio
-        // Since the 3D world thinks "1 unit = 17cm", we need to scale up.
-        // Ratio = 1.0m / 0.17m = approx 5.88 units
-        const ratioScale = 1 / MARKER_SIZE_METERS; 
-        
-        // 2. Apply to the Group
-        const group = document.getElementById('measure-group');
+        // === THE MATH ===
+        // Target: 1.0 meter
+        // Marker: 0.17 meter
+        // Formula: We need X number of 'marker-heights' to equal 1 meter.
+        const targetHeight = 1.0;
+        const markerSize = 0.17;
+        const calculatedY = targetHeight / markerSize; // Result: ~5.88
+
+        // === APPLY POSITION ONLY (NOT SCALE) ===
+        const ringEntity = document.getElementById('height-marker');
         const pole = document.getElementById('pole');
-        const ring = document.getElementById('ring-container');
-        const ui = document.getElementById('ui');
 
-        // We scale the ENTIRE group so "1 unit" inside it equals "1 meter"
-        group.setAttribute('scale', `${ratioScale} ${ratioScale} ${ratioScale}`);
+        // Move the Ring UP to the calculated height
+        ringEntity.setAttribute('position', `0 ${calculatedY} 0`);
 
-        // Update UI to confirm
-        ui.innerHTML = `Calibrated: 1 unit = ${MARKER_SIZE_METERS * 100}cm<br>Green Ring at 100cm`;
-        
-        // --- EXPLANATION OF VISUALS ---
-        // The Red Box is NOT scaled. It should match the size of your physical marker exactly.
-        // The Green Ring IS scaled. It should represent 1 true meter.
+        // Adjust the Pole to connect the gap
+        // Height of pole = calculated Y
+        // Position of pole = calculated Y / 2 (because cylinders grow from center)
+        pole.setAttribute('height', calculatedY);
+        pole.setAttribute('position', `0 -${calculatedY / 2} 0`);
+
+        document.getElementById('info').innerHTML = `Ring Height: 100cm (Internal Units: ${calculatedY.toFixed(2)})`;
       }
     </script>
   </body>
