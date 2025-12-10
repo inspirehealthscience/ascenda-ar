@@ -4,69 +4,58 @@
     <title>Growth Chart AR Scanner</title>
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
-    
     <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
 
     <style>
-      body { margin: 0; overflow: hidden; font-family: sans-serif; }
+      body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
       
-      /* The Overlay UI */
-      #overlay {
-        position: fixed;
-        bottom: 20px;
-        left: 0;
-        width: 100%;
-        text-align: center;
-        z-index: 10;
-        pointer-events: none;
-      }
-      
-      /* Start Button Screen */
+      /* Start Screen */
       #start-screen {
-        position: fixed;
-        top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.9);
-        z-index: 999;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.9); z-index: 999;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
         color: white;
       }
-      
       #start-btn {
-        padding: 15px 30px;
-        font-size: 20px;
-        background: #007bff;
-        color: white;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-        margin-top: 20px;
+        padding: 15px 40px; font-size: 20px; background: #28a745;
+        color: white; border: none; border-radius: 50px; cursor: pointer; margin-top: 20px;
       }
 
-      /* Legend Badges */
-      .badge {
-        background: rgba(0,0,0,0.7);
-        color: white;
-        padding: 10px 20px;
-        border-radius: 20px;
-        font-size: 16px;
-        display: inline-block;
+      /* Legend Overlay */
+      #overlay {
+        position: fixed; bottom: 20px; left: 0; width: 100%;
+        text-align: center; pointer-events: none; display: none;
       }
-      .dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+      .badge {
+        background: rgba(0,0,0,0.8); color: white; padding: 10px 20px;
+        border-radius: 30px; font-size: 16px; display: inline-block;
+      }
+      .dot { height: 12px; width: 12px; border-radius: 50%; display: inline-block; margin-right: 5px; }
     </style>
   </head>
 
   <body>
 
+    <script>
+      // === UPDATE THIS DATA FOR YOUR SPECIFIC AGE ===
+      // Values are in Meters (e.g., 110cm = 1.1)
+      // Default: WHO Standards for 5-Year-Old Boy
+      const growthData = {
+        sd3_pos: 1.21,  // +3 SD (Top Orange Ring)
+        median:  1.10,  // Median (Green Ring)
+        sd3_neg: 0.99   // -3 SD (Bottom Orange Ring)
+      };
+    </script>
+
     <div id="start-screen">
-      <h2>AR Growth Scanner</h2>
-      <p>Please allow camera access when prompted.</p>
+      <h2>Growth Scanner</h2>
+      <p>1. Place Hiro marker on floor.</p>
+      <p>2. Stand back 1-2 meters.</p>
       <button id="start-btn" onclick="startAR()">Start Camera</button>
     </div>
 
-    <div id="overlay" style="display:none;"> <div class="badge">
+    <div id="overlay">
+      <div class="badge">
         <span style="margin-right:15px;"><span class="dot" style="background:orange;"></span>±3 SD</span>
         <span><span class="dot" style="background:#00ff00;"></span>Median</span>
       </div>
@@ -75,27 +64,28 @@
     <a-scene 
       embedded 
       vr-mode-ui="enabled: false"
-      arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;">
+      renderer="logarithmicDepthBuffer: true;"
+      arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3; sourceWidth:1280; sourceHeight:960; displayWidth: 1280; displayHeight: 960;">
 
-      <a-marker preset="hiro" id="marker">
+      <a-marker preset="hiro" id="marker" smooth="true" smoothCount="10" smoothTolerance="0.01" smoothThreshold="5">
         
-        <a-entity position="0 1.2 0">
-            <a-torus color="orange" radius="0.3" radius-tubular="0.01" rotation="90 0 0" opacity="0.8"></a-torus>
-            <a-text value="+3 SD" color="orange" align="center" position="0 0.4 0" scale="2 2 2" look-at="[camera]"></a-text>
+        <a-entity id="ring-top" position="0 1 0">
+            <a-torus color="orange" radius="0.3" radius-tubular="0.015" rotation="90 0 0" opacity="0.9"></a-torus>
+            <a-text id="txt-top" value="+3 SD" color="orange" align="center" position="0 0.4 0" scale="2 2 2" look-at="[camera]"></a-text>
         </a-entity>
 
-        <a-entity position="0 1.1 0">
-            <a-torus color="#00ff00" radius="0.3" radius-tubular="0.02" rotation="90 0 0"></a-torus>
-            <a-cylinder color="#00ff00" height="0.05" radius="0.3" opacity="0.15"></a-cylinder>
-            <a-text value="MEDIAN" color="#00ff00" align="center" position="0 0.4 0" scale="2 2 2" look-at="[camera]"></a-text>
+        <a-entity id="ring-mid" position="0 1 0">
+            <a-torus color="#00ff00" radius="0.3" radius-tubular="0.025" rotation="90 0 0"></a-torus>
+            <a-cylinder color="#00ff00" height="0.1" radius="0.3" opacity="0.1"></a-cylinder>
+            <a-text id="txt-mid" value="MEDIAN" color="#00ff00" align="center" position="0 0.4 0" scale="2 2 2" look-at="[camera]"></a-text>
         </a-entity>
 
-        <a-entity position="0 1.0 0">
-            <a-torus color="orange" radius="0.3" radius-tubular="0.01" rotation="90 0 0" opacity="0.8"></a-torus>
-            <a-text value="-3 SD" color="orange" align="center" position="0 0.4 0" scale="2 2 2" look-at="[camera]"></a-text>
+        <a-entity id="ring-bot" position="0 1 0">
+            <a-torus color="orange" radius="0.3" radius-tubular="0.015" rotation="90 0 0" opacity="0.9"></a-torus>
+            <a-text id="txt-bot" value="-3 SD" color="orange" align="center" position="0 0.4 0" scale="2 2 2" look-at="[camera]"></a-text>
         </a-entity>
         
-        <a-box position="0 0 0" scale="0.1 0.01 0.1" color="blue"></a-box>
+        <a-cylinder position="0 0.6 0" radius="0.005" height="1.2" color="white" opacity="0.3"></a-cylinder>
 
       </a-marker>
 
@@ -104,12 +94,23 @@
 
     <script>
       function startAR() {
-        // Hide start screen
         document.getElementById('start-screen').style.display = 'none';
         document.getElementById('overlay').style.display = 'block';
         
-        // This triggers the scene to actually render, helping with the 'first load' bug
-        document.querySelector('a-scene').style.display = 'block';
+        // Apply Config Data to Rings
+        const topRing = document.querySelector('#ring-top');
+        const midRing = document.querySelector('#ring-mid');
+        const botRing = document.querySelector('#ring-bot');
+
+        // Set Positions (Y axis is the middle number)
+        topRing.setAttribute('position', `0 ${growthData.sd3_pos} 0`);
+        midRing.setAttribute('position', `0 ${growthData.median} 0`);
+        botRing.setAttribute('position', `0 ${growthData.sd3_neg} 0`);
+
+        // Update Text Labels with CM values
+        document.querySelector('#txt-top').setAttribute('value', `+3 SD (${(growthData.sd3_pos*100).toFixed(0)}cm)`);
+        document.querySelector('#txt-mid').setAttribute('value', `MEDIAN (${(growthData.median*100).toFixed(0)}cm)`);
+        document.querySelector('#txt-bot').setAttribute('value', `-3 SD (${(growthData.sd3_neg*100).toFixed(0)}cm)`);
       }
     </script>
   </body>
