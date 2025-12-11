@@ -3,180 +3,200 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Auto-Level AR Measure</title>
+    <title>AR Height Stadiometer</title>
     
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
 
     <style>
-        body { margin: 0; overflow: hidden; font-family: sans-serif; }
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
 
-        /* UI Overlay */
+        /* --- THE UI OVERLAY --- */
         #ui-layer {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none;
+            pointer-events: none; /* Let clicks pass through to slider */
             z-index: 10;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
         }
 
-        /* The Center Target (Top of Object) */
-        #crosshair {
+        /* Top Header */
+        .header {
+            padding: 20px;
+            text-align: center;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
+        }
+        .logo-text {
+            color: white; font-weight: bold; font-size: 20px; letter-spacing: 1px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        /* The Measurement Display (Floating near slider) */
+        #measure-badge {
             position: absolute;
-            top: 50%; left: 50%;
-            width: 40px; height: 4px;
-            background: red;
-            transform: translate(-50%, -50%);
-            box-shadow: 0 0 5px red;
-        }
-        #crosshair::after {
-            content: "Align with TOP";
-            position: absolute; top: -20px; left: 50%; 
-            transform: translateX(-50%);
-            color: red; font-size: 12px; font-weight: bold; white-space: nowrap;
-        }
-
-        /* The Automatic Floor Line (Follows Marker) */
-        #floor-line {
-            position: absolute;
-            left: 10%; width: 80%; height: 4px;
-            background: #00ff00;
-            box-shadow: 0 0 5px #00ff00;
-            display: none; /* Hidden until marker found */
-        }
-        #floor-line::after {
-            content: "FLOOR (Marker)";
-            position: absolute; bottom: -20px; left: 50%;
-            transform: translateX(-50%);
-            color: #00ff00; font-size: 12px; font-weight: bold;
-        }
-
-        /* Connecting Line (Vertical visualization) */
-        #measure-line {
-            position: absolute;
-            left: 50%; width: 2px;
-            background: rgba(255, 255, 255, 0.5);
-            transform: translateX(-50%);
-            display: none;
-        }
-
-        /* Stats Box */
-        .hud {
-            position: absolute; top: 20px; left: 0; right: 0;
+            left: 80px; /* To the right of the slider */
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px 20px;
+            border-radius: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
             text-align: center;
         }
-        .hud-box {
-            display: inline-block;
-            background: rgba(0,0,0,0.8);
-            border: 2px solid white;
-            padding: 15px 30px;
-            border-radius: 30px;
+        #height-val { font-size: 32px; font-weight: 800; color: #6a1b9a; }
+        #unit-val { font-size: 14px; color: #666; font-weight: bold; }
+
+        /* The Vertical Slider Container */
+        .slider-container {
+            position: absolute;
+            left: 20px; top: 15%; bottom: 15%;
+            width: 60px;
+            pointer-events: auto; /* Re-enable clicks */
+            display: flex; align-items: center; justify-content: center;
         }
-        .main-val { font-size: 32px; font-weight: bold; color: white; }
-        .sub-val { font-size: 12px; color: #ccc; margin-top: 5px;}
-        
+
+        /* The Range Input (Rotated to be vertical) */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 70vh; /* Length of the slider based on screen height */
+            height: 15px;
+            background: linear-gradient(to right, #4a148c, #8e24aa); /* Purple Gradient */
+            border-radius: 10px;
+            outline: none;
+            transform: rotate(-90deg); /* Make it vertical */
+            box-shadow: 0 0 10px rgba(106, 27, 154, 0.5);
+        }
+
+        /* The Slider Thumb (The White Dot) */
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 35px; height: 35px;
+            border-radius: 50%;
+            background: white;
+            border: 4px solid #ab47bc;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+
+        /* Submit Button Area */
+        .footer {
+            padding: 30px;
+            text-align: center;
+            pointer-events: auto;
+            background: linear-gradient(to top, rgba(0,0,0,0.6), transparent);
+        }
+        .submit-btn {
+            background: linear-gradient(45deg, #8e24aa, #4a148c);
+            color: white;
+            border: none;
+            padding: 15px 50px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 30px;
+            box-shadow: 0 4px 15px rgba(123, 31, 162, 0.4);
+            letter-spacing: 1px;
+        }
     </style>
 </head>
 <body>
 
     <div id="ui-layer">
-        <div class="hud">
-            <div class="hud-box">
-                <div class="main-val" id="result-text">0.0 cm</div>
-                <div class="sub-val" id="status-text">Scanning for Marker...</div>
-            </div>
+        <div class="header">
+            <div class="logo-text">ASCENDA REALITY</div>
         </div>
 
-        <div id="crosshair"></div>
-        <div id="floor-line"></div>
-        <div id="measure-line"></div>
+        <div id="measure-badge">
+            <div id="height-val">100</div>
+            <div id="unit-val">CM</div>
+        </div>
+
+        <div class="slider-container">
+            <input type="range" id="height-slider" min="50" max="180" value="100" oninput="updateHeight(this.value)">
+        </div>
+
+        <div class="footer">
+            <button class="submit-btn" onclick="captureResult()">SUBMIT</button>
+        </div>
     </div>
 
     <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;" vr-mode-ui="enabled: false">
-        <a-entity camera></a-entity>
-        <a-marker preset="hiro" id="target-marker">
-            <a-sphere radius="0.1" color="#00ff00"></a-sphere>
+        
+        <a-marker preset="hiro">
+
+            <a-box 
+                position="0 5.29 0" 
+                height="10.58" 
+                width="0.5" 
+                depth="0.05" 
+                material="color: #4a148c; opacity: 0.8;">
+            </a-box>
+
+            <a-entity id="level-indicator" position="0 0 0">
+                
+                <a-box 
+                    position="1.5 0 0" 
+                    width="3" 
+                    height="0.05" 
+                    depth="0.05" 
+                    material="color: #ff00ff; opacity: 1;">
+                </a-box>
+                
+                <a-cone 
+                    position="3.1 0 0" 
+                    rotation="0 0 -90" 
+                    radius-bottom="0.2" 
+                    height="0.4" 
+                    material="color: #ff00ff;">
+                </a-cone>
+
+                <a-text 
+                    id="ar-text"
+                    value="100 cm" 
+                    position="-0.5 0 0" 
+                    color="white" 
+                    align="right"
+                    scale="2 2 2">
+                </a-text>
+
+            </a-entity>
+
         </a-marker>
+
+        <a-entity camera></a-entity>
     </a-scene>
 
 <script>
-    // --- CONFIG ---
-    const MARKER_SIZE_CM = 17.0; 
-    const VERTICAL_FOV = 60; // Standard approximation
+    // Configuration
+    const MARKER_SIZE_CM = 17.0; // The physical size of your Hiro marker
+    
+    // Elements
+    const levelIndicator = document.getElementById("level-indicator");
+    const heightValDisplay = document.getElementById("height-val");
+    const arText = document.getElementById("ar-text");
 
-    // --- ELEMENTS ---
-    const marker = document.querySelector("#target-marker");
-    const cameraEl = document.querySelector("[camera]");
-    const floorLine = document.getElementById("floor-line");
-    const resultText = document.getElementById("result-text");
-    const statusText = document.getElementById("status-text");
-    const measureLine = document.getElementById("measure-line");
+    // Function called when slider moves
+    function updateHeight(cmValue) {
+        // 1. Update UI Text
+        heightValDisplay.innerText = cmValue;
+        arText.setAttribute('value', cmValue + " cm");
 
-    // --- MAIN LOOP ---
-    setInterval(() => {
-        if (!marker || !marker.object3D || !marker.object3D.visible) {
-            statusText.innerText = "Point camera at floor marker";
-            statusText.style.color = "yellow";
-            floorLine.style.display = "none";
-            measureLine.style.display = "none";
-            return;
-        }
+        // 2. Convert CM to AR Units
+        // Formula: Units = TargetCM / MarkerCM
+        const arUnits = cmValue / MARKER_SIZE_CM;
 
-        // 1. Get 3D Positions
-        const markerPos = marker.object3D.position.clone();
-        const cameraPos = cameraEl.object3D.position.clone();
+        // 3. Move the 3D Object
+        levelIndicator.object3D.position.y = arUnits;
+    }
 
-        // 2. Calculate Real Distance (Depth)
-        const distanceMeters = markerPos.distanceTo(cameraPos); // In "AR Units"
-        // Convert to CM. AR.js units are normalized so 1 unit approx = 1 marker width
-        // But for projection math, we need the relative Z-depth mostly.
-        const realDistCm = distanceMeters * MARKER_SIZE_CM;
-
-        // 3. Project Marker 3D Position to 2D Screen Coordinates
-        // This is the Magic Step: It tells us where the floor is on your screen!
-        markerPos.project(cameraEl.object3D.children[0]); // Project vector
-        
-        // markerPos.y is now in range [-1, 1]. 
-        // +1 is Top, -1 is Bottom. 0 is Center.
-        // We invert Y because CSS pixels go Top->Bottom, but 3D goes Bottom->Top
-        const floorScreenYPercent = (-(markerPos.y) + 1) / 2 * 100;
-
-        // 4. Update UI Line
-        floorLine.style.display = "block";
-        floorLine.style.top = floorScreenYPercent + "%";
-
-        // 5. Calculate Height
-        // The "Top" is fixed at the center of the screen (50%)
-        const centerScreenYPercent = 50;
-        
-        // Calculate the percentage of the screen the object occupies
-        // If marker is below center (e.g. 80%), diff is 30%.
-        let percentDiff = floorScreenYPercent - centerScreenYPercent;
-        
-        if (percentDiff < 0) {
-            // Marker is above the center line (User is looking UP at the marker?)
-            // This usually means invalid measurement state or object is upside down.
-            percentDiff = 0; 
-        }
-
-        // --- THE MATH ---
-        // Height = Distance * (ScreenPercent) * 2 * tan(FOV/2)
-        const fovRad = (VERTICAL_FOV * Math.PI) / 180;
-        const screenFactor = percentDiff / 100;
-        
-        // Note: We use realDistCm from the AR calculation which inherently includes
-        // the perspective Z-depth.
-        const heightCm = realDistCm * screenFactor * 2 * Math.tan(fovRad / 2);
-
-        // 6. Update Stats
-        resultText.innerText = heightCm.toFixed(1) + " cm";
-        statusText.innerText = "Marker Locked. Align red line with top.";
-        statusText.style.color = "#00ff00";
-
-        // Update the vertical connecting line
-        measureLine.style.display = "block";
-        measureLine.style.top = "50%";
-        measureLine.style.height = percentDiff + "%";
-
-    }, 50); // Fast update for smooth UI
+    // Capture/Submit Logic
+    function captureResult() {
+        const finalHeight = document.getElementById("height-slider").value;
+        alert("Measurement Captured: " + finalHeight + " cm");
+        // Here you would send data to your backend
+    }
 </script>
+
 </body>
 </html>
